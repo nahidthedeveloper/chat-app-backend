@@ -95,3 +95,9 @@ class UserSignupEmailConfirmSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'non_field_errors': ['Invalid token!']})
 
         return attrs
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = ['id', 'first_name', 'last_name', 'email', 'profile_picture']

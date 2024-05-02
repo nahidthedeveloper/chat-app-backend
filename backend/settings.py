@@ -25,6 +25,8 @@ APPEND_SLASH = True
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -44,7 +46,7 @@ INSTALLED_APPS = [
 
     # user app
     'authentication',
-
+    'chat',
 ]
 
 MIDDLEWARE = [
@@ -78,7 +80,19 @@ TEMPLATES = [
     },
 ]
 
+# Redis channels
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("localhost", 6379)],
+        },
+    },
+}
+
+
 WSGI_APPLICATION = 'backend.wsgi.application'
+ASGI_APPLICATION = 'backend.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
@@ -151,7 +165,7 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
-# If use custom user model then configure that
+# If you use custom user model then configure that
 AUTH_USER_MODEL = "authentication.Account"
 
 # for email sent configuration
