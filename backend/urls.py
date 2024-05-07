@@ -4,10 +4,13 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
 
-from authentication.viewset import AuthenticationViewSet
+from authentication.viewset import AuthenticationViewSet, ProfileViewSet
+from chat.viewset import ConversationViewSet
 
 router = routers.DefaultRouter()
 router.register(r'auth', AuthenticationViewSet, basename='authentication')
+router.register(r'chat', ConversationViewSet, basename='conversation')
+router.register(r'profile', ProfileViewSet, basename='user_profile')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

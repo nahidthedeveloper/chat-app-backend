@@ -1,11 +1,15 @@
 from django.contrib import admin
 
-# from chat.models import ChatModel
-#
-#
-# class ChatAdmin(admin.ModelAdmin):
-#     list_editable = ['is_read']
-#     list_display = ['sender', 'receiver', 'message', 'is_read']
-#
-#
-# admin.site.register(ChatModel, ChatAdmin)
+from chat.models import Conversation, Message
+
+
+class ConversationAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user1', 'user2']
+
+
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ['id', 'conversation', 'sender']
+
+
+admin.site.register(Conversation, ConversationAdmin)
+admin.site.register(Message, MessageAdmin)

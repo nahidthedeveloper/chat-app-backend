@@ -2,11 +2,12 @@ from datetime import datetime
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from authentication.models import Account, UserSignupEmailSenderModel
 from authentication.serializer import SignupSerializer, LoginSerializer, UserSignupEmailConfirmSerializer, \
-    EmptySerializer
+    EmptySerializer, ProfileSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -68,3 +69,12 @@ class AuthenticationViewSet(viewsets.ModelViewSet):
 
             })
         return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
+
+
+class ProfileViewSet(viewsets.ModelViewSet):
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Account.objects.filter(pk=user.pk)
