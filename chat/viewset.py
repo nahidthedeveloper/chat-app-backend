@@ -2,13 +2,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
-from authentication.serializer import EmptySerializer
-from django.shortcuts import get_object_or_404
-from authentication.models import Account
+from authentication.serializer import EmptySerializer, Account, ProfileSerializer
 from chat.models import Conversation, Message
 from chat.serializer import ConversationSerializer, MessageSerializer
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.db.models import Q
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -32,6 +33,28 @@ class ConversationViewSet(viewsets.ModelViewSet):
         sms = Conversation.objects.filter(user1=user) | Conversation.objects.filter(user2=user)
         data = ConversationSerializer(sms, many=True).data
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['POST'], url_path=r'create_conversation/(?P<id>\d+)')
+    def create_conversation(self, request, *args, **kwargs):
+        user1 = self.request.user
+        user2 = kwargs['id']
+        find_conversation = Conversation.objects.filter(
+            Q(user1=user1, user2_id=user2) | Q(user1=user2, user2=user1)).first()
+
+        if not find_conversation:
+            if user2:
+                try:
+                    user2 = Account.objects.get(pk=user2)
+                except Account.DoesNotExist:
+                    return Response({"message": "User2 is not found."}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                return Response({"message": "Please provide user2 id in the request data."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            Conversation.objects.create(user1=user1, user2=user2)
+            return Response(status=status.HTTP_201_CREATED)
+        else:
+            return Response(status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['GET'], url_path=r'messages/(?P<id>\d+)')
     def messages(self, request, *args, **kwargs):
@@ -59,3 +82,29 @@ class ConversationViewSet(viewsets.ModelViewSet):
             }
         )
         return Response(status=status.HTTP_200_OK)
+
+
+class UsersViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    queryset = []
+    serializer_class = ProfileSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['email', 'first_name', 'last_name']
+
+    def get_queryset(self):
+        user = self.request.user
+        if self.action == 'list':
+            return Account.objects.exclude(Q(pk=user.id) | Q(is_superuser=True)).all()
+        return []
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ProfileSerializer
+        return EmptySerializer
+
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+

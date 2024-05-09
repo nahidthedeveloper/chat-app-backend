@@ -2,9 +2,6 @@ import json
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
-from channels.db import database_sync_to_async
-from chat.models import Message, Conversation
-from authentication.models import Account
 
 
 class PersonalChatConsumer(WebsocketConsumer):

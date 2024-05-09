@@ -6,12 +6,12 @@ from chat.models import Conversation, Message
 
 
 class ConversationSerializer(serializers.ModelSerializer):
-    user1 = ProfileSerializer()
-    user2 = ProfileSerializer()
+    user1 = ProfileSerializer(read_only=True)
+    user2 = ProfileSerializer(read_only=True)
 
     class Meta:
         model = Conversation
-        fields = ['id', 'user1', 'user2', 'created_at', 'updated_at']
+        fields = ('id', 'user1', 'user2', 'created_at', 'updated_at')
 
 
 class MessageSerializer(serializers.ModelSerializer):
