@@ -3,6 +3,8 @@ from rest_framework import serializers
 from authentication.models import Account
 from authentication.serializer import ProfileSerializer
 from chat.models import Conversation, Message
+from rest_framework.response import Response
+from rest_framework import status
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -11,7 +13,7 @@ class ConversationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Conversation
-        fields = ('id', 'user1', 'user2', 'created_at', 'updated_at')
+        fields = ('id', 'user1', 'user2', 'requester', 'is_friend', 'is_pending', 'created_at', 'updated_at')
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -31,5 +33,11 @@ class MessageSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         sender = Account.objects.get(pk=validated_data['sender'].pk)
         conversation = Conversation.objects.get(pk=validated_data['conversation'].pk)
-        message = Message.objects.create(conversation=conversation, sender=sender, message=validated_data['message'])
+        if conversation['is_friend'] is True:
+            message = Message.objects.create(conversation=conversation, sender=sender,
+                                             message=validated_data['message'])
+        else:
+            return Response(
+                {'message': 'This user cannot be your friend. Please make friend first, then send the message.'},
+                status=status.HTTP_400_BAD_REQUEST)
         return message

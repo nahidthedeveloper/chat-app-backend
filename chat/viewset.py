@@ -2,7 +2,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
-from authentication.serializer import EmptySerializer, Account, ProfileSerializer
+from authentication.serializer import EmptySerializer, Account, ProfileSerializer, UsersSerializer
 from chat.models import Conversation, Message
 from chat.serializer import ConversationSerializer, MessageSerializer
 from asgiref.sync import async_to_sync
@@ -42,16 +42,19 @@ class ConversationViewSet(viewsets.ModelViewSet):
             Q(user1=user1, user2_id=user2) | Q(user1=user2, user2=user1)).first()
 
         if not find_conversation:
+            if user1 == user2:
+                return Response({'message': 'How funny !! You can not friend with yourself.'},
+                                status=status.HTTP_400_BAD_REQUEST)
             if user2:
                 try:
                     user2 = Account.objects.get(pk=user2)
                 except Account.DoesNotExist:
-                    return Response({"message": "User2 is not found."}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"message": "Receiver not found."}, status=status.HTTP_404_NOT_FOUND)
             else:
-                return Response({"message": "Please provide user2 id in the request data."},
+                return Response({"message": "Please provide receiver."},
                                 status=status.HTTP_400_BAD_REQUEST)
 
-            Conversation.objects.create(user1=user1, user2=user2)
+            Conversation.objects.create(user1=user1, user2=user2, requester=user1)
             return Response(status=status.HTTP_201_CREATED)
         else:
             return Response(status.HTTP_400_BAD_REQUEST)
@@ -73,6 +76,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
+        # Trigger channel
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f'chat_{kwargs['id']}',
@@ -87,7 +91,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
 class UsersViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = []
-    serializer_class = ProfileSerializer
+    serializer_class = UsersSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['email', 'first_name', 'last_name']
 
@@ -99,12 +103,10 @@ class UsersViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         if self.action == 'list':
-            return ProfileSerializer
+            return UsersSerializer
         return EmptySerializer
-
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
+        serializer = self.get_serializer(queryset, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
-

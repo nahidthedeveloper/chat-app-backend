@@ -4,7 +4,7 @@ from chat.models import Conversation, Message
 
 
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user1', 'user2']
+    list_display = ['id', 'user1', 'user2', 'requester', 'is_friend', 'is_pending']
 
 
 class MessageAdmin(admin.ModelAdmin):

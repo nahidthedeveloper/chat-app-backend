@@ -6,6 +6,8 @@ from django.utils.http import urlsafe_base64_decode
 from authentication.token import account_activation_token
 from django.utils.encoding import force_str
 from authentication.utils import sent_user_verify_email
+from chat.models import Conversation
+from django.db.models import Q
 
 
 class EmptySerializer(serializers.Serializer):
@@ -101,3 +103,34 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Account
         fields = ['id', 'first_name', 'last_name', 'email', 'profile_picture']
+
+
+class UsersSerializer(serializers.ModelSerializer):
+    requester = serializers.SerializerMethodField()
+    is_friend = serializers.SerializerMethodField()
+    is_pending = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Account
+        fields = ['id', 'first_name', 'last_name', 'email', 'profile_picture', 'requester', 'is_friend', 'is_pending']
+
+    def get_requester(self, obj):
+        user = self.context['request'].user
+        conversation = Conversation.objects.filter(Q(user1=user, user2=obj) | Q(user1=obj, user2=user)).first()
+        if conversation:
+            return conversation.requester.id if conversation.requester else None
+        return None
+
+    def get_is_friend(self, obj):
+        user = self.context['request'].user
+        conversation = Conversation.objects.filter(Q(user1=user, user2=obj) | Q(user1=obj, user2=user)).first()
+        if conversation:
+            return conversation.is_friend
+        return False
+
+    def get_is_pending(self, obj):
+        user = self.context['request'].user
+        conversation = Conversation.objects.filter(Q(user1=user, user2=obj) | Q(user1=obj, user2=user)).first()
+        if conversation:
+            return conversation.is_pending
+        return True
