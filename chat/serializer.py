@@ -33,11 +33,8 @@ class MessageSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         sender = Account.objects.get(pk=validated_data['sender'].pk)
         conversation = Conversation.objects.get(pk=validated_data['conversation'].pk)
-        if conversation['is_friend'] is True:
-            message = Message.objects.create(conversation=conversation, sender=sender,
-                                             message=validated_data['message'])
-        else:
-            return Response(
-                {'message': 'This user cannot be your friend. Please make friend first, then send the message.'},
-                status=status.HTTP_400_BAD_REQUEST)
-        return message
+        return Message.objects.create(
+            conversation=conversation,
+            sender=sender,
+            message=validated_data['message']
+        )

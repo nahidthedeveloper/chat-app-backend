@@ -73,7 +73,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
             'sender': request.user.pk,
         }
         serializer = MessageSerializer(data=payload)
-        serializer.is_valid(raise_exception=True)
+        if serializer.is_valid():
+            conversation = serializer.validated_data.get('conversation')
+            if not conversation.is_friend:
+                return Response(
+                    {'message': 'This user cannot be your friend. Please make friend first, then send the message.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         serializer.save()
 
         # Trigger channel
