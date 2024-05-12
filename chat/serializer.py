@@ -38,3 +38,21 @@ class MessageSerializer(serializers.ModelSerializer):
             sender=sender,
             message=validated_data['message']
         )
+
+
+class CreateConversationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Conversation
+        fields = ['user1', 'user2']
+
+    def validate(self, attrs):
+        user1 = attrs.get('user1')
+        user2 = attrs.get('user2')
+
+        if user1 is None:
+            raise serializers.ValidationError({'user1': 'User1 is required'})
+        if user2 is None:
+            raise serializers.ValidationError({'user2': 'User2 is required'})
+        if user1 == user2:
+            raise serializers.ValidationError("You can't friend with yourself.")
+        return attrs

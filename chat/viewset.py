@@ -2,9 +2,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
-from authentication.serializer import EmptySerializer, Account, ProfileSerializer, UsersSerializer
+from authentication.serializer import EmptySerializer, Account, UsersSerializer
 from chat.models import Conversation, Message
-from chat.serializer import ConversationSerializer, MessageSerializer
+from chat.serializer import ConversationSerializer, MessageSerializer, CreateConversationSerializer
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db.models import Q
@@ -18,49 +18,51 @@ class ConversationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        if self.action == 'conversation':
+        if self.action == 'conversation_list':
             return ConversationSerializer
-        elif self.action in ['messages', 'sent_message']:
+        if self.action == 'create_conversation':
+            return CreateConversationSerializer
+        elif self.action in ['sent_message', 'conversation']:
             return MessageSerializer
         return EmptySerializer
 
     def list(self, request, *args, **kwargs):
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['GET'], url_path='conversation')
-    def conversation(self, request, *args, **kwargs):
+    @action(detail=False, methods=['GET'], url_path='conversation_list')
+    def conversation_list(self, request, *args, **kwargs):
         user = self.request.user
-        sms = Conversation.objects.filter(user1=user) | Conversation.objects.filter(user2=user)
+        sms = Conversation.objects.filter(Q(user1=user) | Q(user2=user))
         data = ConversationSerializer(sms, many=True).data
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['POST'], url_path=r'create_conversation/(?P<id>\d+)')
     def create_conversation(self, request, *args, **kwargs):
-        user1 = self.request.user
-        user2 = kwargs['id']
-        find_conversation = Conversation.objects.filter(
-            Q(user1=user1, user2_id=user2) | Q(user1=user2, user2=user1)).first()
+        user1 = request.user
+        user2_id = kwargs.get('id')
 
-        if not find_conversation:
-            if user1 == user2:
-                return Response({'message': 'How funny !! You can not friend with yourself.'},
-                                status=status.HTTP_400_BAD_REQUEST)
-            if user2:
-                try:
-                    user2 = Account.objects.get(pk=user2)
-                except Account.DoesNotExist:
-                    return Response({"message": "Receiver not found."}, status=status.HTTP_404_NOT_FOUND)
-            else:
-                return Response({"message": "Please provide receiver."},
-                                status=status.HTTP_400_BAD_REQUEST)
+        # Validate input data using serializer
+        serializer = CreateConversationSerializer(data={'user1': user1.id, 'user2': user2_id})
+        serializer.is_valid(raise_exception=True)
 
-            Conversation.objects.create(user1=user1, user2=user2, requester=user1)
-            return Response(status=status.HTTP_201_CREATED)
-        else:
-            return Response(status.HTTP_400_BAD_REQUEST)
+        user2 = Account.objects.filter(pk=user2_id).first()
+        if not user2:
+            return Response({"message": "Receiver not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    @action(detail=False, methods=['GET'], url_path=r'messages/(?P<id>\d+)')
-    def messages(self, request, *args, **kwargs):
+        # Check if conversation already exists
+        existing_conversation = Conversation.objects.filter(
+            Q(user1=user1, user2=user2) | Q(user1=user2, user2=user1)
+        ).first()
+
+        if existing_conversation:
+            return Response({"message": "Conversation already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create new conversation
+        Conversation.objects.create(user1=user1, user2=user2, requester=user1)
+        return Response(status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['GET'], url_path=r'conversation/(?P<id>\d+)')
+    def conversation(self, request, *args, **kwargs):
         sms = Message.objects.filter(conversation=kwargs['id']).order_by('-timestamp')
         data = MessageSerializer(sms, many=True).data
         return Response(data, status=status.HTTP_200_OK)
@@ -91,6 +93,40 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 'message': serializer.data,
             }
         )
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['POST'], url_path=r'accept_conversation/(?P<id>\d+)')
+    def accept_conversation(self, request, *args, **kwargs):
+        conversation_id = kwargs['id']
+        user = request.user.pk
+        requester = request.data['requester']
+        if not conversation_id:
+            return Response({"message": "Conversation id not found"}, status=status.HTTP_404_NOT_FOUND)
+        if not requester:
+            return Response({"message": "Requester not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            conversation = Conversation.objects.get(Q(user1=user) | Q(user2=user), pk=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response("Conversation not found", status=status.HTTP_404_NOT_FOUND)
+
+        if requester != user:
+            conversation.is_friend = True
+            conversation.is_pending = False
+            conversation.save()
+            return Response(status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['POST'], url_path=r'delete_conversation/(?P<id>\d+)')
+    def delete_conversation(self, request, *args, **kwargs):
+        conversation_id = kwargs['id']
+        user = request.user.pk
+        try:
+            conversation = Conversation.objects.get(Q(user1=user) | Q(user2=user), pk=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response("Conversation not found", status=status.HTTP_404_NOT_FOUND)
+
+        if conversation:
+            conversation.delete()
         return Response(status=status.HTTP_200_OK)
 
 

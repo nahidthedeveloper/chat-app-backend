@@ -106,13 +106,23 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class UsersSerializer(serializers.ModelSerializer):
+    conversation_id = serializers.SerializerMethodField()
     requester = serializers.SerializerMethodField()
     is_friend = serializers.SerializerMethodField()
     is_pending = serializers.SerializerMethodField()
 
     class Meta:
         model = Account
-        fields = ['id', 'first_name', 'last_name', 'email', 'profile_picture', 'requester', 'is_friend', 'is_pending']
+        fields = ['id', 'first_name', 'last_name', 'email', 'profile_picture', 'requester', 'is_friend', 'is_pending',
+                  'conversation_id']
+
+    def get_conversation_id(self, obj):
+        user = self.context['request'].user
+        conversation = Conversation.objects.filter(Q(user1=user, user2=obj) | Q(user1=obj, user2=user)).first()
+        if conversation:
+            return conversation.id
+        else:
+            return None
 
     def get_requester(self, obj):
         user = self.context['request'].user
