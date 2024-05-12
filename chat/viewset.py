@@ -32,7 +32,10 @@ class ConversationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['GET'], url_path='conversation_list')
     def conversation_list(self, request, *args, **kwargs):
         user = self.request.user
-        sms = Conversation.objects.filter(Q(user1=user) | Q(user2=user))
+        try:
+            sms = Conversation.objects.filter(Q(user1=user) | Q(user2=user))
+        except Conversation.DoesNotExist:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         data = ConversationSerializer(sms, many=True).data
         return Response(data, status=status.HTTP_200_OK)
 
