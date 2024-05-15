@@ -3,6 +3,9 @@ import json
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 
+from chat.models import Conversation
+from django.db.models import Q
+
 
 class PersonalChatConsumer(WebsocketConsumer):
     def connect(self):
@@ -11,15 +14,23 @@ class PersonalChatConsumer(WebsocketConsumer):
         user = self.scope['user']
 
         if user and user.is_authenticated:
-            self.channel_layer.group_add(
-                self.room_group_name,
-                self.channel_name
-            )
+            try:
+                conversation = Conversation.objects.get(Q(user1=user.pk) | Q(user2=user.pk), pk=self.room_name)
+            except Conversation.DoesNotExist:
+                conversation = None
 
-            self.accept()
-            self.send(text_data=json.dumps({
-                'connect_message': 'Socket connected',
-            }))
+            if conversation:
+                self.channel_layer.group_add(
+                    self.room_group_name,
+                    self.channel_name
+                )
+
+                self.accept()
+                self.send(text_data=json.dumps({
+                    'connect_message': 'Socket connected',
+                }))
+            else:
+                self.close(code=4401)
         else:
             self.close(code=4401)
 
