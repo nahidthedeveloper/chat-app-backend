@@ -10,3 +10,4 @@ dj-rest-auth==2.2.4
 channels-redis==4.2.0
 daphne==4.1.2
 django-filter==24.1
+django-jazzmin==3.0.0
