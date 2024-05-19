@@ -61,7 +61,18 @@ class ConversationViewSet(viewsets.ModelViewSet):
             return Response({"message": "Conversation already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Create new conversation
-        Conversation.objects.create(user1=user1, user2=user2, requester=user1)
+        conversation = Conversation.objects.create(user1=user1, user2=user2, requester=user1)
+        conversation_data = ConversationSerializer(conversation).data  # Serialize the conversation
+
+        # Trigger channel
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            str(user2_id),
+            {
+                'type': 'sent_friend_request',
+                'conversation': conversation_data,
+            }
+        )
         return Response(status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['GET'], url_path=r'conversation/(?P<id>\d+)')
@@ -116,6 +127,24 @@ class ConversationViewSet(viewsets.ModelViewSet):
             conversation.is_friend = True
             conversation.is_pending = False
             conversation.save()
+
+            conversation_data = ConversationSerializer(conversation).data
+            receiver = None
+            if user != conversation_data['user1']['id']:
+                receiver = conversation_data['user1']['id']
+            elif user != conversation_data['user2']['id']:
+                receiver = conversation_data['user2']['id']
+
+            # Trigger channel
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                str(receiver),
+                {
+                    'type': 'accept_friend_request',
+                    'conversation': conversation_data,
+                }
+            )
+
             return Response(status=status.HTTP_200_OK)
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
@@ -129,7 +158,24 @@ class ConversationViewSet(viewsets.ModelViewSet):
             return Response("Conversation not found", status=status.HTTP_404_NOT_FOUND)
 
         if conversation:
+            conversation_data = ConversationSerializer(conversation).data
+            receiver = None
+            if user != conversation_data['user1']['id']:
+                receiver = conversation_data['user1']['id']
+            elif user != conversation_data['user2']['id']:
+                receiver = conversation_data['user2']['id']
+
             conversation.delete()
+
+            # Trigger channel
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                str(receiver),
+                {
+                    'type': 'cancel_friend_request',
+                    'conversation': conversation_data,
+                }
+            )
         return Response(status=status.HTTP_200_OK)
 
 

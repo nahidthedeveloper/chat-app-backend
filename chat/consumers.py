@@ -20,11 +20,10 @@ class PersonalChatConsumer(WebsocketConsumer):
                 conversation = None
 
             if conversation:
-                self.channel_layer.group_add(
+                async_to_sync(self.channel_layer.group_add)(
                     self.room_group_name,
                     self.channel_name
                 )
-
                 self.accept()
                 self.send(text_data=json.dumps({
                     'connect_message': 'Socket connected',
@@ -34,17 +33,52 @@ class PersonalChatConsumer(WebsocketConsumer):
         else:
             self.close(code=4401)
 
+    def chat_message(self, event):
+        message = event['message']
+        self.send(text_data=json.dumps({
+            'message': message
+        }))
 
-def chat_message(self, event):
-    message = event['message']
-    self.send(text_data=json.dumps({
-        'message': message
-    }))
+    def disconnect(self, close_code):
+        # Leave room group
+        async_to_sync(self.channel_layer.group_discard)(
+            self.room_group_name,
+            self.channel_name
+        )
 
 
-def disconnect(self, close_code):
-    # Leave room group
-    async_to_sync(self.channel_layer.group_discard)(
-        self.room_group_name,
-        self.channel_name
-    )
+class FriendRequestConsumer(WebsocketConsumer):
+    def connect(self):
+        self.user = self.scope["user"]
+        if not self.user.is_authenticated:
+            self.close()
+        else:
+            async_to_sync(self.channel_layer.group_add)(
+                str(self.user.pk),
+                self.channel_name
+            )
+            self.accept()
+
+    def sent_friend_request(self, event):
+        conversation = event['conversation']
+        self.send(text_data=json.dumps({
+            'conversation': conversation
+        }))
+
+    def cancel_friend_request(self, event):
+        conversation = event['conversation']
+        self.send(text_data=json.dumps({
+            'conversation': conversation
+        }))
+
+    def accept_friend_request(self, event):
+        conversation = event['conversation']
+        self.send(text_data=json.dumps({
+            'conversation': conversation
+        }))
+
+    def disconnect(self, close_code):
+        async_to_sync(self.channel_layer.group_discard)(
+            str(self.user.pk),
+            self.channel_name
+        )
